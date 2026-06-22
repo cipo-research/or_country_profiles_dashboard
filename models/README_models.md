@@ -58,6 +58,8 @@ models/
 
 ## How to run
 
+**Environment:** use the base Anaconda environment (`C:\ProgramData\anaconda3`). This is the environment where all dependencies (`pandas`, `requests`, `pyarrow`, etc.) are installed. See `requirements.txt` for the full list.
+
 Each ETL is a **notebook**. From project root:
 
 1. Open the relevant notebook in `models/<layer>/`

@@ -8,7 +8,6 @@ API functions to a new file `statcan_utils.py`.
 
 from http import HTTPStatus
 from pathlib import Path
-from typing import Optional
 from zipfile import ZipFile, BadZipFile
 
 import pandas as pd
@@ -18,7 +17,7 @@ import pyarrow.parquet as pq
 import requests
 
 
-REPO_NAME = 'or_country_profiles'
+REPO_NAME = 'or_country_profiles_dashboard'
 
 # ------------------------
 # Directory & file helpers
@@ -233,7 +232,7 @@ def download_zip(
     url: str,
     destination: Path,
     chunk: int = 8192,
-    verbose: Optional[bool] = False
+    verbose: bool = False
     ) -> None:
     """
     Stream a remote file and save it locally at `destination`. Creates
@@ -242,7 +241,7 @@ def download_zip(
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
     with requests.get(url, stream=True, timeout=120) as response:
-        # Check respones status
+        # Check response status
         response.raise_for_status()
         if verbose is True:
             print("Download status: ", end='')
@@ -266,7 +265,7 @@ STATCAN_WEB_DATA_SERVICE = 'https://www150.statcan.gc.ca/t1/wds/rest'
 def get_full_table_zip_url(
     table_id: int | str,
     lang: str = 'en',
-    verbose: Optional[bool] = False
+    verbose: bool = False
     ) -> str:
     """
     Call StatCan WDS to obtain the direct ZIP URL for a full-table CSV download.

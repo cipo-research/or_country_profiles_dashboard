@@ -1,5 +1,5 @@
-`./or_country_profiles/utils` docs
-==================================
+`./or_country_profiles_dashboard/utils` docs
+============================================
 
 This folder contains helper scripts that support the ETL pipeline.
 Think of it as the toolbox for common tasks like shared functions, mapping data directories, and managing paths.
@@ -53,6 +53,18 @@ from utils.paths import RAW_DIR, STAGING_DIR
 
 print(RAW_DIR)  # points to ./data/raw
 ```
+
+---
+
+### `oecd_utils.py`
+
+Shared parsing and cleaning logic for OECD SDMX-JSON 2.0 data.
+
+Used by the OECD IP charges staging notebook and unit-tested independently in `tests/test_oecd_ip_charges.py`.
+
+Key functions:
+- `parse_sdmx_json(data)` — decodes a raw OECD SDMX-JSON 2.0 response into a flat DataFrame, one row per observation
+- `clean_ip_charges(df)` — filters to the IP charges measure only, drops estimated/missing observations, renames columns, casts types, and sorts
 
 ---
 

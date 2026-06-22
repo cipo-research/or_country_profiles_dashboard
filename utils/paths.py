@@ -23,7 +23,7 @@ from utils.etl_utils import get_repo_root
 #############
 
 # Repo directory
-REPO_DIR: Path = get_repo_root(repo_name="or_country_profiles-main")
+REPO_DIR: Path = get_repo_root(repo_name="or_country_profiles_dashboard")
 
 
 # Documentation directory
@@ -46,6 +46,7 @@ MARTS        = 'marts'
 # Common sources
 UN         = 'un'
 GAC        = 'gac'
+OECD       = 'oecd'
 WIPO       = 'wipo'
 STATCAN    = 'statcan'
 WORLD_BANK = 'world_bank'
@@ -87,6 +88,7 @@ DEMO_DIR = DATA_DIR / 'demo_japan'
 RAW_DIR = DATA_DIR / RAW
 
 # RAW - Sources
+RAW_OECD_DIR       = RAW_DIR / OECD
 RAW_WIPO_DIR       = RAW_DIR / WIPO
 RAW_STATCAN_DIR    = RAW_DIR / STATCAN
 RAW_WORLD_BANK_DIR = RAW_DIR / WORLD_BANK
@@ -121,6 +123,7 @@ STG_NICE_CLASSES_DIR    = STG_IP_CLASSES_DIR / NICE_CLASSES
 STG_LOCARNO_CLASSES_DIR = STG_IP_CLASSES_DIR / LOCARNO_CLASSES
 
 # STAGING - Non-WIPO sources
+STG_OECD_DIR       = STG_DIR / OECD        # OECD
 STG_WORLD_BANK_DIR = STG_DIR / WORLD_BANK  # World Bank
 STG_STATCAN_DIR    = STG_DIR / STATCAN     # Statistics Canada (StatCan)
 STG_GAC_DIR        = STG_DIR / GAC         # Global Affairs Canada (GAC)

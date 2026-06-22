@@ -1,0 +1,16 @@
+# Data — never commit raw, staged, or mart data files
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Tests
+.pytest_cache/
+
+# Logs
+*.log
