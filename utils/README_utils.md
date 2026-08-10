@@ -58,13 +58,14 @@ print(RAW_DIR)  # points to ./data/raw
 
 ### `oecd_utils.py`
 
-Shared parsing and cleaning logic for OECD SDMX-JSON 2.0 data.
+Shared parsing, cleaning and reshaping logic for OECD SDMX-JSON 2.0 data.
 
-Used by the OECD IP charges staging notebook and unit-tested independently in `tests/test_oecd_ip_charges.py`.
+Used by the OECD IP charges staging + mart notebooks and unit-tested independently in `tests/test_oecd_ip_charges.py`.
 
 Key functions:
 - `parse_sdmx_json(data)` — decodes a raw OECD SDMX-JSON 2.0 response into a flat DataFrame, one row per observation
-- `clean_ip_charges(df)` — filters to the IP charges measure only, drops estimated/missing observations, renames columns, casts types, and sorts
+- `clean_ip_charges(df)` — filters to the IP charges measure (`SH`), drops estimated/missing observations, retains the accounting entry (`C`/`D`/`B`), renames columns, casts types, and sorts
+- `pivot_ip_charges_wide(df)` — pivots the long cleaned data (one row per accounting entry) into the wide mart shape: one row per (year, counterpart) with `balance_cad_millions` / `revenue_cad_millions` / `expenditure_cad_millions` columns
 
 ---
 

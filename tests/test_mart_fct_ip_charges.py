@@ -3,6 +3,11 @@ Validates the mart output CSV (fct_ip_charges_yearly.csv) before uploading to RD
 
 Run with: pytest tests/test_mart_fct_ip_charges.py -v
 All tests must pass before writing to the database.
+
+Wide schema (one row per year x counterpart, gross flows split into columns):
+  year, counterpart_country, balance_cad_millions, revenue_cad_millions, expenditure_cad_millions
+  balance = credit - debit.  Credit/debit are null for some partner-years
+  (partner breakdown starts ~2010; a few cells report only some entries).
 """
 
 import pandas as pd
@@ -11,9 +16,12 @@ from pathlib import Path
 
 MART_PATH = Path(__file__).parent.parent / 'data' / 'marts' / 'fct_ip_charges_yearly.csv'
 
-EXPECTED_COLUMNS   = ['year', 'counterpart_country', 'flow_type', 'value_cad_millions']
-EXPECTED_FLOW_TYPE = 'Charges for use of IP - Balance'
-EXPECTED_ROW_COUNT = 1315
+EXPECTED_COLUMNS = [
+    'year', 'counterpart_country',
+    'balance_cad_millions', 'revenue_cad_millions', 'expenditure_cad_millions',
+]
+VALUE_COLUMNS      = ['balance_cad_millions', 'revenue_cad_millions', 'expenditure_cad_millions']
+EXPECTED_ROW_COUNT = 1323   # distinct (year, counterpart); bump on OECD data refresh
 YEAR_MIN           = 1969
 YEAR_MAX           = 2024
 
@@ -33,7 +41,7 @@ REQUIRED_NAMES = [
     "Slovakia",
     "South Korea",
     "Taiwan",
-    "World",           # kept in CSV, filtered in Power BI
+    "World",           # kept in CSV, mapped to "All countries" at load
     "United States",
 ]
 
@@ -58,14 +66,19 @@ def test_row_count(df):
         f"Expected {EXPECTED_ROW_COUNT} rows, got {len(df)}"
     )
 
-def test_no_nulls(df):
-    null_counts = df.isnull().sum()
-    assert null_counts.sum() == 0, f"Nulls found:\n{null_counts[null_counts > 0]}"
+def test_keys_never_null(df):
+    # Structural keys must always be present...
+    for col in ['year', 'counterpart_country']:
+        assert df[col].isnull().sum() == 0, f"Nulls found in key column '{col}'"
 
-def test_no_empty_strings(df):
-    for col in ['counterpart_country', 'flow_type']:
-        blanks = (df[col].str.strip() == '').sum()
-        assert blanks == 0, f"Empty strings in '{col}': {blanks}"
+def test_value_columns_not_entirely_null(df):
+    # ...but value columns may have gaps (unreported entries); each must still carry data
+    for col in VALUE_COLUMNS:
+        assert df[col].notna().any(), f"Value column '{col}' is entirely null"
+
+def test_counterpart_country_no_empty_strings(df):
+    blanks = (df['counterpart_country'].str.strip() == '').sum()
+    assert blanks == 0, f"Empty strings in 'counterpart_country': {blanks}"
 
 
 # ---------------------------------------------------------------------------
@@ -83,31 +96,34 @@ def test_year_range(df):
 
 
 # ---------------------------------------------------------------------------
-# flow_type
+# Values
 # ---------------------------------------------------------------------------
 
-def test_flow_type_single_value(df):
-    unique = df['flow_type'].unique()
-    assert list(unique) == [EXPECTED_FLOW_TYPE], (
-        f"Unexpected flow_type values: {unique}"
+def test_value_dtypes_numeric(df):
+    for col in VALUE_COLUMNS:
+        assert pd.api.types.is_numeric_dtype(df[col]), (
+            f"{col} should be numeric, got {df[col].dtype}"
+        )
+
+def test_balance_not_all_positive(df):
+    # Canada runs a net IP deficit — there must be negative balances
+    assert (df['balance_cad_millions'] < 0).any(), "No negative balances — something is wrong"
+
+def test_balance_not_all_zero(df):
+    assert (df['balance_cad_millions'].fillna(0) != 0).any(), "All balances zero — something is wrong"
+
+def test_credit_and_debit_are_non_negative_where_present(df):
+    # Gross flows are magnitudes: revenue and expenditure are >= 0
+    assert (df['revenue_cad_millions'].dropna() >= 0).all(), "Negative credit (revenue) found"
+    assert (df['expenditure_cad_millions'].dropna() >= 0).all(), "Negative debit (expenditure) found"
+
+def test_balance_identity_holds_where_all_present(df):
+    # balance = credit - debit for every row where all three are reported
+    full = df.dropna(subset=VALUE_COLUMNS)
+    diff = (full['balance_cad_millions'] - (full['revenue_cad_millions'] - full['expenditure_cad_millions'])).abs()
+    assert (diff <= 1.0).all(), (
+        f"balance != credit - debit in {(diff > 1.0).sum()} rows (max diff {diff.max()})"
     )
-
-
-# ---------------------------------------------------------------------------
-# value_cad_millions
-# ---------------------------------------------------------------------------
-
-def test_value_dtype(df):
-    assert pd.api.types.is_numeric_dtype(df['value_cad_millions']), (
-        f"value_cad_millions should be numeric, got {df['value_cad_millions'].dtype}"
-    )
-
-def test_value_not_all_positive(df):
-    # Canada runs a net IP deficit — there must be negative values
-    assert (df['value_cad_millions'] < 0).any(), "No negative values — something is wrong"
-
-def test_value_not_all_zero(df):
-    assert (df['value_cad_millions'] != 0).any(), "All values are zero — something is wrong"
 
 
 # ---------------------------------------------------------------------------
@@ -141,10 +157,13 @@ def test_no_duplicate_year_country(df):
 # Spot checks
 # ---------------------------------------------------------------------------
 
-def test_usa_has_data_in_2022(df):
-    row = df[(df['counterpart_country'] == 'United States') & (df['year'] == 2022)]
-    assert len(row) == 1, "Missing USA 2022 row"
-    assert row.iloc[0]['value_cad_millions'] < 0, "USA 2022 balance should be negative"
+def test_usa_gross_flows_present_2024(df):
+    row = df[(df['counterpart_country'] == 'United States') & (df['year'] == 2024)]
+    assert len(row) == 1, "Missing USA 2024 row"
+    r = row.iloc[0]
+    assert r['balance_cad_millions'] < 0, "USA 2024 balance should be negative"
+    assert r['revenue_cad_millions'] > 0, "USA 2024 credit (earnings) should be populated and positive"
+    assert r['expenditure_cad_millions'] > 0, "USA 2024 debit (payments) should be populated and positive"
 
 def test_world_present(df):
     world = df[df['counterpart_country'] == 'World']

@@ -71,11 +71,18 @@ def clean_ip_charges(df: pd.DataFrame) -> pd.DataFrame:
     # 3. Drop rows where the observation value itself is null
     df = df.dropna(subset=['value_cad_millions'])
 
-    # 4 & 5. Rename and select final columns
+    # 4 & 5. Rename and select final columns.
+    # ACCOUNTING_ENTRY is now RETAINED (B = balance, C = credit/revenue,
+    # D = debit/expenditure). With the C+D+B fetch it is the only column that
+    # distinguishes the three entries; the mart pivots on it into wide columns.
     df = (
         df
-        .rename(columns={'TIME_PERIOD': 'year', 'COUNTERPART_AREA': 'counterpart_area'})
-        [['year', 'counterpart_area', 'counterpart_country', 'value_cad_millions']]
+        .rename(columns={
+            'TIME_PERIOD':      'year',
+            'COUNTERPART_AREA': 'counterpart_area',
+            'ACCOUNTING_ENTRY': 'accounting_entry',
+        })
+        [['year', 'counterpart_area', 'counterpart_country', 'accounting_entry', 'value_cad_millions']]
         .copy()
     )
 
@@ -84,6 +91,53 @@ def clean_ip_charges(df: pd.DataFrame) -> pd.DataFrame:
     df['value_cad_millions'] = df['value_cad_millions'].astype('Float64')
 
     # 7. Sort
-    df = df.sort_values(['year', 'counterpart_country']).reset_index(drop=True)
+    df = df.sort_values(['year', 'counterpart_country', 'accounting_entry']).reset_index(drop=True)
 
     return df
+
+
+def pivot_ip_charges_wide(df: pd.DataFrame) -> pd.DataFrame:
+    """Pivot the long, cleaned IP charges (one row per accounting entry) into the wide
+    mart shape: one row per (year, counterpart) with separate value columns.
+
+    Column names follow the OECD Data Explorer's general-audience labels:
+        B (Balance)     -> balance_cad_millions       (= revenue - expenditure; Canada's net)
+        C (Revenue)     -> revenue_cad_millions        (royalties Canada earns; a BOP "credit")
+        D (Expenditure) -> expenditure_cad_millions    (royalties Canada pays; a BOP "debit")
+
+    Coverage: the World aggregate carries all three entries back to 1969; the partner-level
+    breakdown starts ~2010, and some partner-years report only some entries -- so any of
+    balance/revenue/expenditure can be <NA> for a given row. That is expected, not a defect.
+    """
+    ENTRY_TO_COL = {
+        'B': 'balance_cad_millions',
+        'C': 'revenue_cad_millions',
+        'D': 'expenditure_cad_millions',
+    }
+
+    wide = (
+        df
+        .pivot(
+            index=['year', 'counterpart_area', 'counterpart_country'],
+            columns='accounting_entry',
+            values='value_cad_millions',
+        )
+        .rename(columns=ENTRY_TO_COL)
+        .reset_index()
+    )
+    wide.columns.name = None
+
+    # Guarantee all three value columns exist even if an entry is entirely absent
+    for col in ENTRY_TO_COL.values():
+        if col not in wide.columns:
+            wide[col] = pd.array([pd.NA] * len(wide), dtype='Float64')
+
+    ordered = [
+        'year', 'counterpart_area', 'counterpart_country',
+        'balance_cad_millions', 'revenue_cad_millions', 'expenditure_cad_millions',
+    ]
+    return (
+        wide[ordered]
+        .sort_values(['year', 'counterpart_country'])
+        .reset_index(drop=True)
+    )
