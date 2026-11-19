@@ -2,7 +2,6 @@
 
 **Branch:** `feature/oecd-ip-gross-flows`
 **Date:** July 2026
-**Author:** Karim Guida
 **Builds on:** PR #1 (`feature/oecd-ip-charges`) — the original balance-only pipeline
 
 ---

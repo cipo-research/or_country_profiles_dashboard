@@ -68,6 +68,23 @@ Each ETL is a **notebook**. From project root:
 
 > Note: Run ETL for region tables (M49, SCCAI, dim_regions, etc.) first, since other tables need to be joined with an M49 code to standardize region names.
 
+### WIPO IP flows: annual refresh to RDS
+
+Run when WIPO announces an update to the IP Statistics Data Center (usually November). Use the Anaconda environment for every step.
+
+1. **Set the year range.** Replace `1980_<old year>` with `1980_<new year>` in the WIPO notebooks (`raw/wipo/raw_wipo_ip_extract.ipynb` sets `to_year`; the three `staging/wipo/stg_wipo_ip_flows*.ipynb` notebooks list the file names). A staging notebook stops with `FileNotFoundError` if a raw file for the new range is missing.
+2. **Download.** Run `raw/wipo/raw_wipo_ip_extract.ipynb`. Large files occasionally fail with `IncompleteRead`; re-run the notebook, as it skips files already downloaded.
+3. **Stage and integrate.** Run `staging/wipo/stg_wipo_ip_flows.ipynb`, `stg_wipo_ip_flows_by_class.ipynb` and `stg_wipo_ip_flows_by_residency.ipynb`, then `intermediate/int_ip_flows.ipynb`, `int_ip_flows_by_class.ipynb` and `int_ip_flows_by_residency.ipynb`. Class labels are read from `data/staging/wipo/ip_classes/` (tracked in git).
+4. **Dry run the load.** `python models/load/load_rds__wipo_ip_flows.py` checks the database permissions, validates the tables, maps names to the existing RDS dimension IDs, prints the `fact_yearly` plan (rows unchanged / revised / filled / inserted) and the percentage change per indicator and year for `fact_class` and `fact_ip_total`. Review it before loading.
+5. **Optional: test load.** `python models/load/load_rds__wipo_ip_flows.py --test` runs the same load into `fact_yearly_test`, `fact_class_test` and `fact_ip_total_test`, leaving the real tables untouched (it does not need the sequence permissions). Check the test tables with a SQL client, then drop them (SQL in the loader's header).
+6. **Load.** `python models/load/load_rds__wipo_ip_flows.py --write` backs up the three fact tables to `<table>_bak_<YYYYMMDD>`, then, in a single transaction: updates revised values and inserts new rows in `fact_yearly` (no rows are deleted), and fully replaces `fact_class` and `fact_ip_total`. To undo, run `--rollback <YYYYMMDD>`. Drop the backup tables once the dashboard has been checked.
+
+Not touched in `fact_yearly`: the existing Chinese trademark rows (indicator `total`, 2014–2024, sourced outside WIPO), the legacy indicators (ID5–ID9, PA9–PA10, TM5–TM9), and PA3 in the years RDS stores by applicant's origin.
+
+Trademark applications into China are stored as one `total` row per origin and year from 2014 (it already includes Madrid filings). The loader therefore skips WIPO's TM1a/TM1b rows into China for years that have `total`, and for later years (from 2025, WIPO reports China by origin) stores them the same way: `total` = WIPO TM1a + TM1b. Years before 2014 keep WIPO's TM1a/TM1b rows, as before.
+
+The load needs `USAGE` on `country_profiles.fact_yearly_id_seq` and `country_profiles.fact_class_id_seq`; the dry run reports any missing permission.
+
 ---
 
 ## Naming Conventions
