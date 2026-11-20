@@ -38,17 +38,17 @@ class UrlSpec:
 
 
 def default_to_year() -> int:
-    # WIPO site usually lags; default to current_year - 2
-    #return dt.date.today().year - 2
+    """Last year downloaded when no end year is given.
 
-    # adjust the default date thorugh this or you can ovveride it using this command: i.e python -m country_profile.cli fetch-wipo --root . --from-year 1980 --to-year 2023 --overwrite --max-workers 8
-
+    WIPO publishes with a lag, so this is set explicitly rather than derived from
+    today's date. Override per run with, for example:
+        python -m country_profile.cli fetch-wipo --root . --from-year 1980 --to-year 2025
+    """
     return 2024
 
 
-# hard coded URL mapping can be found in Kevin's DATA CATALOGUE on WIPO IP indicator lookup table
-# Paste your FULL URL *templates* here. Example of one entry you might paste later:
-# "PA1a": UrlSpec(url_template="https://...&fromYear={from_year}&toYear={to_year}&..."),
+# CSV export URL templates for the WIPO IP Statistics Data Center, keyed by indicator code.
+# {from_year} and {to_year} are filled in at download time.
 URLS: Dict[str, UrlSpec] = {
     # Industrial Desgins
     "ID1a": UrlSpec(url_template="https://api.ipstatsdc.deda.prd.web1.wipo.int/api/v1/public/ips-search/downloadCsv?selectedTab=industrial&indicator=51&reportType=15&fromYear={from_year}&toYear={to_year}&ipsOffSelValues=AF,OA,AP,AL,DZ,AD,AO,AG,AR,AM,AU,AT,AZ,BS,BH,BD,BB,BY,BE,BZ,BX,BJ,BT,BO,BQ,BA,BW,BR,BN,BG,BF,BI,CV,KH,CM,CA,CF,TD,CL,CN,HK,MO,CO,KM,CG,CK,CR,CI,HR,CU,CW,CY,CZ,CS,KP,CD,DK,DJ,DM,DO,EC,EG,SV,GQ,ER,EE,SZ,ET,EA,EM,FJ,FI,FR,GA,GM,GE,DD,DE,GH,GR,GD,GT,GG,GN,GW,GY,HT,VA,HN,HU,IS,IN,ID,IR,IQ,IE,IL,IT,JM,JP,JO,KZ,KE,KI,KW,KG,LA,LV,LB,LS,LR,LY,LI,LT,LU,MG,MW,MY,MV,ML,MT,MH,MR,MU,MX,FM,MC,MN,ME,MA,MZ,MM,NA,NR,NP,NL,AN,NZ,NI,NE,NG,NU,MK,NO,OM,PK,PW,PA,PG,PY,PE,PH,PL,PT,QA,KR,MD,RO,RU,RW,KN,LC,VC,WS,SM,ST,SA,SN,RS,SC,SL,SG,SX,SK,SI,SB,SO,ZA,SS,SU,ES,LK,SD,SR,SE,CH,SY,TJ,TH,TL,TG,TO,TT,TN,TR,TM,TV,UG,UA,AE,GB,TZ,US,UY,UZ,VU,VE,VN,YE,YU,ZR,ZM,ZW&ipsOriSelValues=AF,AL,DZ,AD,AO,AG,AR,AM,AU,AT,AZ,BS,BH,BD,BB,BY,BE,BZ,BJ,BT,BO,BQ,BA,BW,BR,BN,BG,BF,BI,CV,KH,CM,CA,CF,TD,CL,CN,HK,MO,CO,KM,CG,CK,CR,CI,HR,CU,CW,CY,CZ,CS,KP,CD,DK,DJ,DM,DO,EC,EG,SV,GQ,ER,EE,SZ,ET,FJ,FI,FR,GA,GM,GE,DD,DE,GH,GR,GD,GT,GN,GW,GY,HT,VA,HN,HU,IS,IN,ID,IR,IQ,IE,IL,IT,JM,JP,JO,KZ,KE,KI,KW,KG,LA,LV,LB,LS,LR,LY,LI,LT,LU,MG,MW,MY,MV,ML,MT,MH,MR,MU,MX,FM,MC,MN,ME,MA,MZ,MM,NA,NR,NP,NL,AN,NZ,NI,NE,NG,NU,MK,NO,OM,PK,PW,PA,PG,PY,PE,PH,PL,PT,QA,KR,MD,RO,RU,RW,KN,LC,VC,WS,SM,ST,SA,SN,RS,SC,SL,SG,SX,SK,SI,SB,SO,ZA,SS,SU,ES,LK,SD,SR,SE,CH,SY,TJ,TH,TL,TG,TO,TT,TN,TR,TM,TV,UG,UA,AE,GB,TZ,US,UY,UZ,VU,VE,VN,YE,YU,ZR,ZM,ZW,**"),
@@ -229,12 +229,12 @@ def fetch_all(
         logger.warning("Some files failed (%d):\n- %s", len(errors), "\n- ".join(errors))
     return written
 
-#  use original WIPO filenames 
+# Original WIPO file names
 
 
 import os as _os
 
-# Toggle via env var (default ON)
+# Set WIPO_USE_ORIGINAL_FILENAMES=0 to save files as <KEY>_<from>_<to>.csv instead (default: on)
 _USE_ORIGINAL_FILENAMES = (_os.getenv("WIPO_USE_ORIGINAL_FILENAMES", "1").lower() in {"1","true","yes","on"})
 
 # Map KEY -> original filename template (with {from_year}/{to_year})
@@ -285,10 +285,9 @@ _ORIGINAL_FILENAME_TEMPLATES: Dict[str, str] = {
     "TM9":  "trademark_9 - Resident class count per million population (by origin)_Total count by applicant's origin_{from_year}_{to_year}.csv",
 }
 
-# Override the previously-defined _download_one with a filename-aware version.
-# (Python uses the last definition; no need to edit earlier code.)
+# When original file names are enabled, this definition of _download_one replaces the one above.
 if _USE_ORIGINAL_FILENAMES:
-    _prev__download_one = _download_one  # keep a reference just in case
+    _prev__download_one = _download_one
 
     def _download_one(
         session: requests.Session,
