@@ -85,6 +85,18 @@ Trademark applications into China are stored as one `total` row per origin and y
 
 The load needs `USAGE` on `country_profiles.fact_yearly_id_seq` and `country_profiles.fact_class_id_seq`; the dry run reports any missing permission.
 
+### StatCan macroeconomic flows and trade by NAICS: refresh to RDS
+
+Run when Statistics Canada publishes new FDI, trade or trade-by-NAICS data. Use the Anaconda environment for every step; the trade-by-NAICS notebooks need `duckdb` (`pip install --user duckdb` if it is missing).
+
+1. **Download.** Run `raw/statcan/raw_statcan__macroecon_flows.ipynb` (FDI tables 36-10-0008 and 36-10-0433, trade tables 12-10-0104 and 12-10-0115) and `raw/statcan/raw_statcan__trade_by_naics.ipynb` (table 12-10-0176: a 2 GB download converted to parquet, about 6 minutes).
+2. **Build the marts.** Run `staging/statcan/stg_statcan__macroecon_flows.ipynb`, `intermediate/int_macroecon_flows.ipynb` and `marts/marts_macroecon_flows_yearly.ipynb`, then `staging/statcan/stg_statcan__trade_by_naics.ipynb`, `intermediate/int_trade_by_naics.ipynb` and `marts/marts_trade_by_naics_yearly.ipynb`.
+3. **Dry run the load.** `python models/load/load_rds__statcan_flows.py` checks the database permissions, validates the marts, maps names to the existing RDS dimension IDs, and prints for each fact table the plan (rows unchanged / revised / filled / inserted, by year) and the percentage change in the yearly totals per series. Review it before loading.
+4. **Optional: test load.** `python models/load/load_rds__statcan_flows.py --test` runs the same load into `fact_macroecon_flows_test` and `fact_trade_by_naics_test`, leaving the real tables untouched. Check the test tables with a SQL client, then drop them (SQL in the loader's header).
+5. **Load.** `python models/load/load_rds__statcan_flows.py --write` backs up both fact tables to `<table>_bak_<YYYYMMDD>`, then, in a single transaction, updates revised values and inserts new rows in `fact_macroecon_flows` and `fact_trade_by_naics` (no rows are deleted). To undo, run `--rollback <YYYYMMDD>`. Drop the backup tables once the dashboard has been checked.
+
+Trade by NAICS is monthly data summed by year, so the latest year is usually partial (year to date). It is loaded as is and completed by the next refresh. The `Total of all industries` rows and the `Unknown or unspecified` trading partner are not loaded, as RDS does not store them.
+
 ---
 
 ## Naming Conventions
