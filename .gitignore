@@ -1,5 +1,8 @@
 # Data — never commit raw, staged, or mart data files
-data/
+data/**
+!data/**/
+# ...except small reference inputs required by the pipeline
+!data/staging/wipo/ip_classes/**
 
 # Python
 __pycache__/

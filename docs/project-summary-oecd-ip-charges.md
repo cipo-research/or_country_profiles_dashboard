@@ -2,7 +2,6 @@
 
 **Branch:** `feature/oecd-ip-charges`  
 **Date:** June 2026  
-**Author:** Karim Guida
 
 ---
 
